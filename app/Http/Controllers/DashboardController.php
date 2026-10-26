@@ -1,0 +1,157 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Project;
+use App\Models\Workflow;
+use App\Models\WorkflowExecutionLog;
+use App\Models\ProjectStatusLog;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class DashboardController extends Controller
+{
+    public function index(Request $request): Response
+    {
+        $tenantId = 1;
+
+        // 1. CARDS DE MÉTRICAS (REAIS)
+        $totalWorkflows = Workflow::count();
+        $activeWorkflows = Workflow::where('is_active', true)->count();
+        $totalProjects = Project::count();
+        
+        $totalTriggers = WorkflowExecutionLog::count();
+        $totalSuccess = WorkflowExecutionLog::where('status', 'success')->count();
+        $totalSkipped = WorkflowExecutionLog::where('status', 'skipped')->count();
+        $totalErrors = WorkflowExecutionLog::where('status', 'failed')->count();
+        
+        $totalLogins = DB::table('authentication_logs')->count();
+        $totalAudit = DB::table('audit_logs')->count();
+
+        $stats = [
+            'total_workflows'    => $totalWorkflows,
+            'active_workflows'   => $activeWorkflows,
+            'total_projects'     => $totalProjects,
+            'total_triggers'     => $totalTriggers,
+            'total_alerts_sent'  => $totalSuccess,
+            'total_skipped'      => $totalSkipped,
+            'total_errors'       => $totalErrors,
+            'total_logins'       => $totalLogins,
+            'total_audit'        => $totalAudit,
+        ];
+
+        // 2. GRÁFICO REAL: ÚLTIMOS 7 DIAS
+        $chartData = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = Carbon::now()->subDays($i);
+            $dateString = $date->toDateString();
+            $label = $date->locale('pt_BR')->shortDayName;
+
+            $daySuccess = WorkflowExecutionLog::whereDate('created_at', $dateString)
+                ->where('status', 'success')
+                ->count();
+
+            $daySkipped = WorkflowExecutionLog::whereDate('created_at', $dateString)
+                ->where('status', 'skipped')
+                ->count();
+
+            $dayErrors = WorkflowExecutionLog::whereDate('created_at', $dateString)
+                ->where('status', 'failed')
+                ->count();
+
+            $chartData[] = [
+                'day'     => ucfirst($label),
+                'sucesso' => $daySuccess,
+                'skipped' => $daySkipped,
+                'falha'   => $dayErrors,
+            ];
+        }
+
+        // 3. CANAIS / AÇÕES EXECUTADAS
+        $emailActionsCount = DB::table('workflow_actions')
+            ->where('action_type', 'send_email')
+            ->count();
+
+        $actionDistribution = [
+            [
+                'type'       => 'Disparo de E-mail (Simulado/Real)',
+                'count'      => $totalSuccess,
+                'percentage' => $totalTriggers > 0 ? round(($totalSuccess / $totalTriggers) * 100) : 100,
+                'color'      => 'bg-emerald-500',
+            ],
+            [
+                'type'       => 'Condições Ignoradas (Skipped)',
+                'count'      => $totalSkipped,
+                'percentage' => $totalTriggers > 0 ? round(($totalSkipped / $totalTriggers) * 100) : 0,
+                'color'      => 'bg-amber-500',
+            ],
+            [
+                'type'       => 'Erros / Falhas',
+                'count'      => $totalErrors,
+                'percentage' => $totalTriggers > 0 ? round(($totalErrors / $totalTriggers) * 100) : 0,
+                'color'      => 'bg-red-500',
+            ],
+        ];
+
+        // 4. LOGS RECENTES DE EXECUÇÃO
+        $recentExecutionLogs = WorkflowExecutionLog::with('workflow')
+            ->latest('id')
+            ->take(6)
+            ->get()
+            ->map(function ($log) {
+                return [
+                    'id'         => $log->id,
+                    'workflow'   => $log->workflow->name ?? 'Workflow #' . $log->workflow_id,
+                    'event'      => $log->event_name ?? 'status_projeto_alterado',
+                    'status'     => $log->status,
+                    'message'    => $log->message,
+                    'created_at' => $log->created_at ? $log->created_at->format('d/m/Y H:i:s') : '-',
+                ];
+            });
+
+        // 5. LOGS RECENTES DE ACESSO / AUDITORIA
+        $recentAuditLogs = DB::table('audit_logs')
+            ->latest('id')
+            ->take(6)
+            ->get()
+            ->map(function ($audit) {
+                return [
+                    'id'         => $audit->id,
+                    'user'       => $audit->user_name ?? 'Sistema',
+                    'route'      => $audit->route_name ?? $audit->url,
+                    'method'     => $audit->method,
+                    'created_at' => Carbon::parse($audit->created_at)->format('H:i:s'),
+                ];
+            });
+
+        // 6. ÚLTIMAS TRANSIÇÕES DE DEMANDAS
+        $recentStatusTransitions = DB::table('project_status_logs')
+            ->join('projects', 'project_status_logs.project_id', '=', 'projects.id')
+            ->select('project_status_logs.*', 'projects.title as project_title')
+            ->latest('project_status_logs.id')
+            ->take(5)
+            ->get()
+            ->map(function ($trans) {
+                return [
+                    'id'            => $trans->id,
+                    'project_title' => $trans->project_title,
+                    'from'          => $trans->status_from ?? 'Início',
+                    'to'            => $trans->status_to,
+                    'notes'         => $trans->notes,
+                    'created_at'    => Carbon::parse($trans->created_at)->format('H:i:s'),
+                ];
+            });
+
+        return Inertia::render('Dashboard', [
+            'stats'                   => $stats,
+            'chartData'               => $chartData,
+            'actionDistribution'      => $actionDistribution,
+            'recentLogs'              => $recentExecutionLogs,
+            'recentAuditLogs'         => $recentAuditLogs,
+            'recentStatusTransitions' => $recentStatusTransitions,
+        ]);
+    }
+}

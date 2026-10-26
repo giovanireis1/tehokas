@@ -1,0 +1,121 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Tehokas Workflow Engine API",
+        "description": "API de integração externa e Webhooks para acionamento automatizado de workflows.",
+        "contact": {
+            "name": "Suporte Técnico",
+            "email": "contato@tehokas.com"
+        },
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "http://127.0.0.1:8000",
+            "description": "Servidor de Desenvolvimento Local"
+        }
+    ],
+    "paths": {
+        "/api/webhooks/projects/status": {
+            "post": {
+                "tags": [
+                    "Webhooks"
+                ],
+                "summary": "Atualizar status de demanda via Webhook externo",
+                "description": "Recebe o código do projeto, tenant e o novo status. Dispara automaticamente o ciclo de automação assíncrona no Redis.",
+                "operationId": "6880a3b7a75b8d383a079bff24be4058",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "tenant_id",
+                                    "project_code",
+                                    "status"
+                                ],
+                                "properties": {
+                                    "tenant_id": {
+                                        "description": "Identificador do Tenant",
+                                        "type": "integer",
+                                        "example": 1
+                                    },
+                                    "project_code": {
+                                        "description": "Código da Demanda (ou ID numérico)",
+                                        "type": "string",
+                                        "example": "DEM-F21BB"
+                                    },
+                                    "status": {
+                                        "description": "Novo status da demanda",
+                                        "type": "string",
+                                        "example": "Aguardando",
+                                        "enum": [
+                                            "Aguardando",
+                                            "Planejamento",
+                                            "Em Andamento",
+                                            "Em Testes",
+                                            "Concluído",
+                                            "Cancelado"
+                                        ]
+                                    },
+                                    "notes": {
+                                        "description": "Observações da transição",
+                                        "type": "string",
+                                        "example": "Alterado via Webhook do GitHub Actions"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Status atualizado com sucesso e automação disparada.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Status da demanda DEM-F21BB atualizado com sucesso."
+                                        },
+                                        "project_code": {
+                                            "type": "string",
+                                            "example": "DEM-F21BB"
+                                        },
+                                        "status_antigo": {
+                                            "type": "string",
+                                            "example": "Em Testes"
+                                        },
+                                        "status_novo": {
+                                            "type": "string",
+                                            "example": "Aguardando"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Demanda não encontrada para o Tenant informado."
+                    },
+                    "422": {
+                        "description": "Erro de validação nos campos informados."
+                    }
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Webhooks",
+            "description": "Webhooks"
+        }
+    ]
+}
