@@ -18,13 +18,19 @@ class ExecuteWorkflowJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    /**
+     * Se o Model do Workflow foi apagado do banco antes de o job rodar,
+     * o Laravel simplesmente descarta o job em vez de marcar FAIL.
+     */
+    public bool $deleteWhenMissingModels = true;
+
     public $workflow;
     public array $payload;
 
     /**
      * Create a new job instance.
      */
-    public function __construct($workflow, array $payload)
+    public function __construct($workflow, array $payload = [])
     {
         if (is_array($workflow)) {
             $this->workflow = Workflow::hydrate([$workflow])->first();
@@ -47,6 +53,12 @@ class ExecuteWorkflowJob implements ShouldQueue
      */
     public function handle(): void
     {
+        // Trava de segurança 1: Se o workflow for nulo ou não possuir ID, finaliza sem erro
+        if (!$this->workflow || empty($this->workflow->id)) {
+            Log::info("ℹ️ [WORKFLOW] Job ignorado: Workflow inexistente ou sem ID válido.");
+            return;
+        }
+
         Log::info("⚙️ [WORKFLOW] Executando Job para o Workflow ID: {$this->workflow->id}");
 
         // 1. Avalia as condições dinâmicas
@@ -57,7 +69,7 @@ class ExecuteWorkflowJob implements ShouldQueue
             return;
         }
 
-        // 2. Executa as ações vinculadas (Simulação em arquivo .txt)
+        // 2. Executa as ações vinculadas
         $this->executeActions();
     }
 
@@ -66,18 +78,16 @@ class ExecuteWorkflowJob implements ShouldQueue
      */
     private function evaluateConditions(): bool
     {
-        if (!$this->workflow->conditions || $this->workflow->conditions->isEmpty()) {
+        if (empty($this->workflow->conditions) || $this->workflow->conditions->isEmpty()) {
             return true;
         }
 
         foreach ($this->workflow->conditions as $condition) {
-            // Mapeia tanto 'status' quanto 'status_novo' caso a condição monitore o status do projeto
             $fieldValue = $this->payload[$condition->field] 
                 ?? $this->payload['status_novo'] 
                 ?? $this->payload['status'] 
                 ?? null;
 
-            // Suporta valor string simples ou array vindo do JSON do banco
             $rawValues = $condition->value;
             if (is_string($rawValues)) {
                 $decoded = json_decode($rawValues, true);
@@ -102,70 +112,37 @@ class ExecuteWorkflowJob implements ShouldQueue
     }
 
     /**
-     * Executa o envio simulado gravando em storage/logs/simulacao_emails.txt
-     */
-   /* private function executeActions(): void
-    {
-        foreach ($this->workflow->actions as $action) {
-            if ($action->action_type === 'send_email') {
-                $payload = is_string($action->payload) 
-                    ? json_decode($action->payload, true) 
-                    : (array) $action->payload;
-
-                $emails = $payload['emails'] ?? [$payload['to_email'] ?? null];
-                $emails = array_filter((array) $emails);
-
-                if (empty($emails)) {
-                    Log::error("❌ [WORKFLOW] Nenhum e-mail de destino configurado para a ação.");
-                    continue;
-                }
-
-                $filePath = storage_path('logs/simulacao_emails.txt');
-
-                foreach ($emails as $recipient) {
-                    $timestamp = now()->toDateTimeString();
-                    $conteudoSimulado = "=====================================================\n"
-                        . "DATA/HORA: {$timestamp}\n"
-                        . "WORKFLOW ID: {$this->workflow->id} ({$this->workflow->name})\n"
-                        . "DESTINATÁRIO: {$recipient}\n"
-                        . "ASSUNTO: [Alerta de Demanda] Atualização no Projeto: " . ($this->payload['title'] ?? 'N/A') . "\n"
-                        . "PAYLOAD DO EVENTO:\n" . json_encode($this->payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n"
-                        . "=====================================================\n\n";
-
-                    // Grava no arquivo simulando o envio
-                    File::append($filePath, $conteudoSimulado);
-
-                    Log::info("📧 [SIMULAÇÃO DE EMAIL] Gravado em txt para: {$recipient}");
-                }
-
-                $this->logExecution('success', 'E-mail simulado com sucesso em storage/logs/simulacao_emails.txt para: ' . implode(', ', $emails));
-            }
-        }
-    }*/
-
-        /**
      * Executa as ações vinculadas ao workflow com tratamento de exceções
      */
-   private function executeActions(): void
+    private function executeActions(): void
     {
+        if (empty($this->workflow->actions) || $this->workflow->actions->isEmpty()) {
+            Log::info("ℹ️ [WORKFLOW] Nenhuma ação configurada para o Workflow ID: {$this->workflow->id}.");
+            return;
+        }
+
         foreach ($this->workflow->actions as $action) {
             if ($action->action_type === 'send_email') {
-                // Converte payload caso o model não esteja com cast de array/json
                 $actionPayload = is_array($action->payload) 
                     ? $action->payload 
                     : json_decode($action->payload ?? '[]', true);
 
                 $recipients = $actionPayload['emails'] ?? [];
 
-                // Contingência caso não haja e-mails na action
                 if (empty($recipients) && !empty($this->payload['gestor_email'])) {
                     $recipients = [$this->payload['gestor_email']];
+                }
+
+                if (empty($recipients)) {
+                    Log::info("ℹ️ [WORKFLOW] Nenhum e-mail de destino encontrado para a ação. Ignorando envio.");
+                    $this->logExecution('skipped', 'Nenhum destinatário de e-mail encontrado para envio.');
+                    continue;
                 }
 
                 foreach ($recipients as $recipient) {
                     try {
                         Mail::to($recipient)->send(
-                            new WorkflowAlertMail($this->payload ?? [], $this->workflow->name ?? 'Automação')
+                            new WorkflowAlertMail($this->payload ?? [], $this->workflow->name ?? 'Automação',$recipient)
                         );
 
                         $this->logExecution(
@@ -188,17 +165,24 @@ class ExecuteWorkflowJob implements ShouldQueue
      */
     private function logExecution(string $status, string $message): void
     {
-        // Garante que event_name venha do workflow, ou deduz pelo payload, ou usa fallback
-        $eventName = $this->workflow->trigger_event 
-            ?? (isset($this->payload['status_antigo']) ? 'status_projeto_alterado' : 'projeto_criado');
+        if (empty($this->workflow->id)) {
+            return;
+        }
 
-        WorkflowExecutionLog::create([
-            'workflow_id' => $this->workflow->id,
-            'tenant_id'   => $this->workflow->tenant_id ?? ($this->payload['tenant_id'] ?? 1),
-            'event_name'  => $eventName,
-            'status'      => $status,
-            'message'     => $message,
-            'payload'     => $this->payload,
-        ]);
+        try {
+            $eventName = $this->workflow->trigger_event 
+                ?? (isset($this->payload['status_antigo']) ? 'status_projeto_alterado' : 'projeto_criado');
+
+            WorkflowExecutionLog::create([
+                'workflow_id' => $this->workflow->id,
+                'tenant_id'   => $this->workflow->tenant_id ?? ($this->payload['tenant_id'] ?? 1),
+                'event_name'  => $eventName,
+                'status'      => $status,
+                'message'     => $message,
+                'payload'     => $this->payload,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error("❌ [WORKFLOW] Erro ao gravar execution log: " . $e->getMessage());
+        }
     }
 }

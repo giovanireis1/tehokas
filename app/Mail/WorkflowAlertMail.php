@@ -14,11 +14,14 @@ class WorkflowAlertMail extends Mailable
 
     public array $payload;
     public string $workflowName;
+    public ?string $recipientEmail;
 
-    public function __construct(array|null $payload = [], string $workflowName = 'Automação de Demandas')
+    public function __construct(array|null $payload = [], string $workflowName = 'Automação de Demandas', ?string $recipientEmail = null)
     {
         $this->payload = $payload ?? [];
         $this->workflowName = $workflowName;
+        // Se vier informado, usa o e-mail da automação; senão faz fallback pro gestor
+        $this->recipientEmail = $recipientEmail ?? ($this->payload['gestor_email'] ?? null);
     }
 
     public function envelope(): Envelope
@@ -43,7 +46,7 @@ class WorkflowAlertMail extends Mailable
         $projectId = htmlspecialchars((string) ($this->payload['project_id'] ?? '-'));
         $statusAntigo = htmlspecialchars((string) ($this->payload['status_antigo'] ?? 'Cadastrado'));
         $statusNovo = htmlspecialchars((string) ($this->payload['status_novo'] ?? '-'));
-        $email = htmlspecialchars((string) ($this->payload['gestor_email'] ?? '-'));
+        $email = htmlspecialchars((string) ($this->recipientEmail ?? '-'));
 
         return <<<HTML
         <!DOCTYPE html>

@@ -13,7 +13,17 @@ export default defineConfig({
     ],
     resolve: {
         alias: {
-            '@': path.resolve(__dirname, './resources/js'),
+            '@': path.resolve(import.meta.dirname, 'resources/js'),
+        },
+    },
+    customLogger: (() => {
+        const logger = import('vite').then(m => m.createLogger());
+        return undefined; // Deixar o Vite gerenciar ou ignorar
+    })(),
+    server: {
+        // Ignora warnings depreciados de plugins de terceiros no console
+        warmup: {
+            clientFiles: ['./resources/js/app.jsx'],
         },
     },
 });
