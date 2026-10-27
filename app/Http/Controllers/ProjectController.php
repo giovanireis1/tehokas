@@ -4,21 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ProjectController extends Controller
 {
-    /*
-
-        lista projetos e envia para Projects/Index
-    */
-
+    /**
+     * Lista projetos filtrados automaticamente pelo BelongsToTenant.
+     */
     public function index(): Response
     {
-        $projects = Project::where('tenant_id', Auth::user()->tenant_id)
-            ->with('statusLogs')
+        $projects = Project::with('statusLogs')
             ->latest()
             ->get();
 
@@ -27,6 +23,9 @@ class ProjectController extends Controller
         ]);
     }
 
+    /**
+     * Cria a demanda vinculando o tenant via Trait e disparando o Observer.
+     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -41,16 +40,15 @@ class ProjectController extends Controller
             'git_link'       => 'nullable|url|max:255',
             'description'    => 'nullable|string',
         ]);
-        /*
-        * Ao criar o registro, o Eloquent dispara o evento 'created', 
-        * que é capturado pelo ProjectObserver (registrado no AppServiceProvider).
-        * O Observer grava o histórico/log e dispara o WorkflowEngineService.
-        */
+
         Project::create($validated);
 
         return redirect()->back()->with('message', 'Demanda criada com sucesso!');
     }
 
+    /**
+     * Atualiza o status da demanda e dispara o ProjectObserver@updated.
+     */
     public function updateStatus(Request $request, Project $project)
     {
         $validated = $request->validate([
@@ -60,11 +58,6 @@ class ProjectController extends Controller
             'notes'          => 'nullable|string|max:255',
         ]);
 
-         /*
-                * Ao atualizar  o registro, o Eloquent dispara o evento 'updated', 
-                * que é capturado pelo ProjectObserver (registrado no AppServiceProvider).
-                * O Observer grava o histórico/log e dispara o WorkflowEngineService.
-        */
         $project->update([
             'status'         => $validated['status'],
             'developer_name' => $validated['developer_name'] ?? $project->developer_name,

@@ -148,14 +148,14 @@ export default function Index({ auth, workflows = [], triggers = [] }) {
             <Head title="Automações & Workflows" />
 
             <div className="space-y-4 w-full relative pb-10">
-                {/* Faixa superior limpa com métricas rápidas e botão de ação */}
+                {/* Faixa superior com métricas rápidas e botão de ação */}
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
                     <div className="flex items-center space-x-2">
                         <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                             Regras configuradas:
                         </span>
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400 border border-red-200 dark:border-red-900/50">
-                            {totalWorkflows} registros
+                            {totalWorkflows} {totalWorkflows === 1 ? 'regra' : 'regras'} ({activeWorkflows} ativas)
                         </span>
                     </div>
 

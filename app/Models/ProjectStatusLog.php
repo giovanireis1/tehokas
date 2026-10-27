@@ -2,13 +2,13 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProjectStatusLog extends Model
 {
-    use HasFactory;
+    use BelongsToTenant;
 
     protected $fillable = [
         'tenant_id',
@@ -18,6 +18,11 @@ class ProjectStatusLog extends Model
         'status_to',
         'notes',
     ];
+
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
+    }
 
     public function user(): BelongsTo
     {

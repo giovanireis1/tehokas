@@ -1,15 +1,19 @@
 <?php
+
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WorkflowExecutionLog extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
-        'workflow_id',
         'tenant_id',
-        'event_name', // <-- Deve estar presente aqui!
+        'workflow_id',
+        'event_name',
         'status',
         'message',
         'payload',

@@ -3,11 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Models\ProjectStatusLog;
 use App\Models\Workflow;
 use App\Models\WorkflowExecutionLog;
-use App\Models\ProjectStatusLog;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -16,34 +17,40 @@ class DashboardController extends Controller
 {
     public function index(Request $request): Response
     {
-        $tenantId = 1;
+        $tenantId = Auth::user()->tenant_id;
 
-        // 1. CARDS DE MÉTRICAS (REAIS)
+        // 1. CARDS DE MÉTRICAS (Isolados pelo BelongsToTenant)
         $totalWorkflows = Workflow::count();
         $activeWorkflows = Workflow::where('is_active', true)->count();
         $totalProjects = Project::count();
-        
+
         $totalTriggers = WorkflowExecutionLog::count();
         $totalSuccess = WorkflowExecutionLog::where('status', 'success')->count();
         $totalSkipped = WorkflowExecutionLog::where('status', 'skipped')->count();
         $totalErrors = WorkflowExecutionLog::where('status', 'failed')->count();
-        
-        $totalLogins = DB::table('authentication_logs')->count();
-        $totalAudit = DB::table('audit_logs')->count();
+
+        // Tabelas diretas sem model: filtramos explicitamente pelo tenant_id
+        $totalLogins = DB::table('authentication_logs')
+            ->where('tenant_id', $tenantId)
+            ->count();
+
+        $totalAudit = DB::table('audit_logs')
+            ->where('tenant_id', $tenantId)
+            ->count();
 
         $stats = [
-            'total_workflows'    => $totalWorkflows,
-            'active_workflows'   => $activeWorkflows,
-            'total_projects'     => $totalProjects,
-            'total_triggers'     => $totalTriggers,
-            'total_alerts_sent'  => $totalSuccess,
-            'total_skipped'      => $totalSkipped,
-            'total_errors'       => $totalErrors,
-            'total_logins'       => $totalLogins,
-            'total_audit'        => $totalAudit,
+            'total_workflows'   => $totalWorkflows,
+            'active_workflows'  => $activeWorkflows,
+            'total_projects'    => $totalProjects,
+            'total_triggers'    => $totalTriggers,
+            'total_alerts_sent' => $totalSuccess,
+            'total_skipped'     => $totalSkipped,
+            'total_errors'      => $totalErrors,
+            'total_logins'      => $totalLogins,
+            'total_audit'       => $totalAudit,
         ];
 
-        // 2. GRÁFICO REAL: ÚLTIMOS 7 DIAS
+        // 2. GRÁFICO REAL: ÚLTIMOS 7 DIAS (Isolado pelo BelongsToTenant)
         $chartData = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = Carbon::now()->subDays($i);
@@ -71,15 +78,11 @@ class DashboardController extends Controller
         }
 
         // 3. CANAIS / AÇÕES EXECUTADAS
-        $emailActionsCount = DB::table('workflow_actions')
-            ->where('action_type', 'send_email')
-            ->count();
-
         $actionDistribution = [
             [
                 'type'       => 'Disparo de E-mail (Simulado/Real)',
                 'count'      => $totalSuccess,
-                'percentage' => $totalTriggers > 0 ? round(($totalSuccess / $totalTriggers) * 100) : 100,
+                'percentage' => $totalTriggers > 0 ? round(($totalSuccess / $totalTriggers) * 100) : 0,
                 'color'      => 'bg-emerald-500',
             ],
             [
@@ -96,7 +99,7 @@ class DashboardController extends Controller
             ],
         ];
 
-        // 4. LOGS RECENTES DE EXECUÇÃO
+        // 4. LOGS RECENTES DE EXECUÇÃO (Filtrado automaticamente pelo tenant)
         $recentExecutionLogs = WorkflowExecutionLog::with('workflow')
             ->latest('id')
             ->take(6)
@@ -114,6 +117,7 @@ class DashboardController extends Controller
 
         // 5. LOGS RECENTES DE ACESSO / AUDITORIA
         $recentAuditLogs = DB::table('audit_logs')
+            ->where('tenant_id', $tenantId)
             ->latest('id')
             ->take(6)
             ->get()
@@ -127,21 +131,19 @@ class DashboardController extends Controller
                 ];
             });
 
-        // 6. ÚLTIMAS TRANSIÇÕES DE DEMANDAS
-        $recentStatusTransitions = DB::table('project_status_logs')
-            ->join('projects', 'project_status_logs.project_id', '=', 'projects.id')
-            ->select('project_status_logs.*', 'projects.title as project_title')
-            ->latest('project_status_logs.id')
+        // 6. ÚLTIMAS TRANSIÇÕES DE DEMANDAS (Usa o Model para respeitar o tenant)
+        $recentStatusTransitions = ProjectStatusLog::with('project')
+            ->latest('id')
             ->take(5)
             ->get()
             ->map(function ($trans) {
                 return [
                     'id'            => $trans->id,
-                    'project_title' => $trans->project_title,
+                    'project_title' => $trans->project->title ?? 'Demanda #' . $trans->project_id,
                     'from'          => $trans->status_from ?? 'Início',
                     'to'            => $trans->status_to,
                     'notes'         => $trans->notes,
-                    'created_at'    => Carbon::parse($trans->created_at)->format('H:i:s'),
+                    'created_at'    => $trans->created_at ? $trans->created_at->format('H:i:s') : '-',
                 ];
             });
 

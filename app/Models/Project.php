@@ -2,14 +2,14 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Auth;
 
 class Project extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToTenant;
 
     protected $fillable = [
         'tenant_id',
@@ -29,10 +29,6 @@ class Project extends Model
     protected static function booted(): void
     {
         static::creating(function ($project) {
-            if (Auth::check() && !$project->tenant_id) {
-                $project->tenant_id = Auth::user()->tenant_id;
-            }
-
             if (!$project->code) {
                 $project->code = 'DEM-' . strtoupper(substr(uniqid(), -5));
             }

@@ -2,22 +2,19 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
-use Illuminate\Foundation\Application;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\WorkflowController;
-use Inertia\Inertia;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
 
+// Redirecionamento da raiz: Dashboard se autenticado, Login se não autenticado
 Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
+    return Auth::check() 
+        ? redirect()->route('dashboard') 
+        : redirect()->route('login');
 });
 
-// Substituição: agora apontando para o DashboardController::class
+// Dashboard protegido
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
@@ -27,16 +24,16 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+    // Demandas & Projetos
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
     Route::patch('/projects/{project}/status', [ProjectController::class, 'updateStatus'])->name('projects.update-status');
 
+    // Automações & Workflows
     Route::get('/workflows', [WorkflowController::class, 'index'])->name('workflows.index');
     Route::post('/workflows', [WorkflowController::class, 'store'])->name('workflows.store');
     Route::put('/workflows/{workflow}', [WorkflowController::class, 'update'])->name('workflows.update');
     Route::patch('/workflows/{workflow}/toggle', [WorkflowController::class, 'toggleActive'])->name('workflows.toggle');
-
-    
 });
 
 require __DIR__.'/auth.php';

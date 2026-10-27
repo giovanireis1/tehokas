@@ -114,6 +114,9 @@ class ExecuteWorkflowJob implements ShouldQueue
     /**
      * Executa as ações vinculadas ao workflow com tratamento de exceções
      */
+   /**
+     * Executa as ações vinculadas ao workflow com tratamento de exceções
+     */
     private function executeActions(): void
     {
         if (empty($this->workflow->actions) || $this->workflow->actions->isEmpty()) {
@@ -127,32 +130,51 @@ class ExecuteWorkflowJob implements ShouldQueue
                     ? $action->payload 
                     : json_decode($action->payload ?? '[]', true);
 
-                $recipients = $actionPayload['emails'] ?? [];
+                $rawRecipients = $actionPayload['emails'] ?? [];
 
-                if (empty($recipients) && !empty($this->payload['gestor_email'])) {
-                    $recipients = [$this->payload['gestor_email']];
+                // Se não houver destinatários na ação, usa o e-mail do gestor como fallback
+                if (empty($rawRecipients) && !empty($this->payload['gestor_email'])) {
+                    $rawRecipients = [$this->payload['gestor_email']];
                 }
 
+                // Normaliza a lista quebrando por vírgula (,) ou ponto e vírgula (;)
+                $recipients = [];
+                foreach ((array) $rawRecipients as $entry) {
+                    $splitEmails = preg_split('/[;,]/', (string) $entry);
+                    foreach ($splitEmails as $email) {
+                        $trimmed = trim($email);
+                        if (filter_var($trimmed, FILTER_VALIDATE_EMAIL)) {
+                            $recipients[] = $trimmed;
+                        }
+                    }
+                }
+                $recipients = array_values(array_unique($recipients));
+
                 if (empty($recipients)) {
-                    Log::info("ℹ️ [WORKFLOW] Nenhum e-mail de destino encontrado para a ação. Ignorando envio.");
-                    $this->logExecution('skipped', 'Nenhum destinatário de e-mail encontrado para envio.');
+                    Log::info("ℹ️ [WORKFLOW] Nenhum e-mail de destino válido encontrado para a ação. Ignorando envio.");
+                    $this->logExecution('skipped', 'Nenhum destinatário de e-mail válido encontrado para envio.');
                     continue;
                 }
 
-                foreach ($recipients as $recipient) {
+                if (!empty($recipients)) {
                     try {
-                        Mail::to($recipient)->send(
-                            new WorkflowAlertMail($this->payload ?? [], $this->workflow->name ?? 'Automação',$recipient)
+                        // Envia para o primeiro destinatário e coloca os demais em cópia (Cc) ou passa o array direto
+                        Mail::to($recipients)->send(
+                            new WorkflowAlertMail(
+                                $this->payload ?? [],
+                                $this->workflow->name ?? 'Automação',
+                                implode(', ', $recipients)
+                            )
                         );
 
                         $this->logExecution(
                             'success',
-                            "E-mail disparado com sucesso para: {$recipient}"
+                            'E-mails disparados com sucesso para: ' . implode(', ', $recipients)
                         );
                     } catch (\Throwable $e) {
                         $this->logExecution(
                             'failed',
-                            "Falha ao enviar e-mail para {$recipient}: " . substr($e->getMessage(), 0, 250)
+                            'Falha ao enviar e-mails: ' . substr($e->getMessage(), 0, 250)
                         );
                     }
                 }

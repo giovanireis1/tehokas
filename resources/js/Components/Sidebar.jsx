@@ -66,9 +66,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                         </p>
                     )}
                     <div className="space-y-1">
-                        {/* 1. Dashboard / Central de Automações */}
+                        {/* 1. Dashboard / Indicadores */}
                         <Link
-                            href="/dashboard"
+                            href={route('dashboard')}
                             className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all font-medium text-xs ${
                                 url.startsWith('/dashboard')
                                     ? 'bg-red-600/10 text-red-600 dark:bg-red-500/10 dark:text-red-400 border border-red-500/20 shadow-sm'
@@ -91,9 +91,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                             {sidebarOpen && <span className="whitespace-nowrap">Indicadores</span>}
                         </Link>
 
-                        {/* 2. Projetos & Demandas (Novo) */}
+                        {/* 2. Projetos & Demandas */}
                         <Link
-                            href="/projects"
+                            href={route('projects.index')}
                             className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all font-medium text-xs ${
                                 url.startsWith('/projects')
                                     ? 'bg-red-600/10 text-red-600 dark:bg-red-500/10 dark:text-red-400 border border-red-500/20 shadow-sm'
@@ -118,7 +118,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
 
                         {/* 3. Automações & Workflows */}
                         <Link
-                            href="/workflows"
+                            href={route('workflows.index')}
                             className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all font-medium text-xs ${
                                 url.startsWith('/workflows')
                                     ? 'bg-red-600/10 text-red-600 dark:bg-red-500/10 dark:text-red-400 border border-red-500/20 shadow-sm'
@@ -140,8 +140,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                             </svg>
                             {sidebarOpen && <span className="whitespace-nowrap">Automações</span>}
                         </Link>
-
-
                     </div>
                 </div>
             </nav>
