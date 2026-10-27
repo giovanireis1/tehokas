@@ -56,7 +56,6 @@ export default function Index({ auth, workflows = [], triggers = [] }) {
         }
     };
 
-    // Função de Ativar / Desativar rápido
     const handleToggleActive = (workflowId) => {
         router.patch(route('workflows.toggle', workflowId));
     };
@@ -141,24 +140,37 @@ export default function Index({ auth, workflows = [], triggers = [] }) {
         });
     };
 
+    const totalWorkflows = workflows?.length || 0;
+    const activeWorkflows = workflows?.filter(w => w.is_active).length || 0;
+
     return (
-        <AppLayout user={auth?.user} title="Gestão de Workflows">
+        <AppLayout user={auth?.user}>
             <Head title="Automações & Workflows" />
 
-            <div className="space-y-6 w-full">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Central de Automações & Workflows</h2>
-                        <p className="text-xs text-slate-400">Configure alertas automáticos para múltiplos status e destinatários.</p>
+            <div className="space-y-4 w-full relative pb-10">
+                {/* Faixa superior limpa com métricas rápidas e botão de ação */}
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                    <div className="flex items-center space-x-2">
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                            Regras configuradas:
+                        </span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400 border border-red-200 dark:border-red-900/50">
+                            {totalWorkflows} registros
+                        </span>
                     </div>
+
                     <button
                         onClick={() => setIsCreateModalOpen(true)}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-red-500/20 transition cursor-pointer"
+                        className="inline-flex items-center justify-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-red-500/20 hover:shadow-red-500/30 transition-all transform hover:-translate-y-0.5 cursor-pointer shrink-0"
                     >
-                        + Nova Automação
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Nova Automação</span>
                     </button>
                 </div>
 
+                {/* Tabela de Workflows */}
                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm overflow-hidden w-full">
                     <div className="overflow-x-auto w-full">
                         <table className="w-full text-left text-xs text-slate-500 dark:text-slate-400">
@@ -189,8 +201,6 @@ export default function Index({ auth, workflows = [], triggers = [] }) {
                                             try { actPayload = JSON.parse(actPayload); } catch { actPayload = {}; }
                                         }
                                         const emails = actPayload.emails || (actPayload.to_email ? [actPayload.to_email] : []);
-
-                                        // Mapeia tanto camelCase quanto snake_case para os logs
                                         const logs = wf.execution_logs || wf.executionLogs || [];
 
                                         return (
@@ -226,7 +236,6 @@ export default function Index({ auth, workflows = [], triggers = [] }) {
                                                     </div>
                                                 </td>
 
-                                                {/* Toggle Ativo / Inativo */}
                                                 <td className="px-5 py-4 whitespace-nowrap">
                                                     <button
                                                         onClick={() => handleToggleActive(wf.id)}
@@ -260,8 +269,14 @@ export default function Index({ auth, workflows = [], triggers = [] }) {
                                     })
                                 ) : (
                                     <tr>
-                                        <td colSpan="6" className="text-center py-8 text-slate-400">
-                                            Nenhuma automação cadastrada.
+                                        <td colSpan="6" className="text-center py-10 text-slate-400">
+                                            <p className="text-sm font-medium">Nenhuma automação cadastrada no momento.</p>
+                                            <button 
+                                                onClick={() => setIsCreateModalOpen(true)}
+                                                className="mt-2 text-xs text-red-600 hover:underline font-semibold"
+                                            >
+                                                Criar primeira regra agora
+                                            </button>
                                         </td>
                                     </tr>
                                 )}
@@ -269,6 +284,8 @@ export default function Index({ auth, workflows = [], triggers = [] }) {
                         </table>
                     </div>
                 </div>
+
+                
             </div>
 
             {/* MODAL DE CRIAÇÃO */}

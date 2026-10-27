@@ -1,15 +1,36 @@
 import { useState } from 'react';
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 
 export default function TopBar({ header, user, darkMode, setDarkMode }) {
     const [notifyOpen, setNotifyOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
+    const { url } = usePage();
+
+    // Mapeamento automático da rota atual para o título do topo
+    const getPageTitle = () => {
+        if (header) return header;
+
+        const path = url.split('?')[0].toLowerCase();
+
+        if (path.startsWith('/projects') || path.startsWith('/demands') || path.includes('projeto') || path.includes('demanda')) {
+            return 'Projetos & Demandas';
+        }
+        if (path.startsWith('/workflows') || path.startsWith('/automations') || path.includes('automac') || path.includes('workflow')) {
+            return 'Automações';
+        }
+        if (path.startsWith('/indicators') || path.startsWith('/dashboard') || path.includes('indicador')) {
+            return 'Indicadores';
+        }
+
+        return 'Painel de Controle';
+    };
 
     return (
         <header className="h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-6 flex items-center justify-between sticky top-0 z-10 shrink-0">
             <div className="flex items-center space-x-3">
-                <h1 className="text-base font-bold text-slate-900 dark:text-slate-100">{header || 'Painel de Controle'}</h1>
-                <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold">Online</span>
+                <h1 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    {getPageTitle()}
+                </h1>
             </div>
 
             <div className="flex items-center space-x-3">
@@ -82,7 +103,6 @@ export default function TopBar({ header, user, darkMode, setDarkMode }) {
 
                     {profileOpen && (
                         <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl py-2 z-30">
-                            {/* Card de Dados da Empresa e do Usuário */}
                             <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800">
                                 <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{user?.name}</p>
                                 <p className="text-[11px] text-slate-400 truncate mb-2">{user?.email}</p>

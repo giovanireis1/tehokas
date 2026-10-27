@@ -1,9 +1,6 @@
-import React, { useState } from 'react';   // biblioteca react e hook use state para gerenciar estado do componente
-import AppLayout from '@/Layouts/AppLayout';   // alias @, atalho para caminhos configurado no vite.config.js
-
-//importa utilitarios do Inertia.js:  Head para manipular título da página; useForm para gerenciar formulários; router  para fazer requisições http
-import { Head, useForm, router } from '@inertiajs/react';  
-
+import React, { useState } from 'react';
+import AppLayout from '@/Layouts/AppLayout';
+import { Head, useForm } from '@inertiajs/react';
 
 const ALL_STATUSES = [
     'Aguardando',
@@ -15,23 +12,10 @@ const ALL_STATUSES = [
     'Cancelado'
 ];
 
-// auth vem automaticamente do middleware HandleInertiaRequests.php e projects vem da controller que contém dados do banco de dados
 export default function Index({ auth, projects }) {
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false); // variavel isCreateModalOpen de leitura modal: carrega modal fechado
-    const [selectedProject, setSelectedProject] = useState(null); //variável selectedProject de leitura do projeto atualmente selecionado: inicia como null
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [selectedProject, setSelectedProject] = useState(null);
 
-    /*
-        
-        Form Nova Demanda    
-
-        data: createData guarda os valores atuais digitados nos campos.
-        setData: setCreateData   Função para atualizar o valor de um campo específico
-        post: postCreate função que efetivamente envia a requisição HTTP POST via AJAX para o Laravel (usando a rota projects.store)
-        processing: createProcessing Um booleano (true/false) fornecido automaticamente pelo Inertia enquanto a requisição está a caminho. 
-                    Serve para desabilitar o botão de envio e evitar múltiplos cliques.
-        reset: resetCreate: Função que limpa todos os campos do formulário, retornando-os aos valores iniciais assim que a demanda é criada com sucesso.
-
-    */
     const { data: createData, setData: setCreateData, post: postCreate, processing: createProcessing, reset: resetCreate } = useForm({
         title: '',
         applicant: '',
@@ -45,15 +29,6 @@ export default function Index({ auth, projects }) {
         description: '',
     });
 
-    /*
-         Form Editar Demanda 
-    
-        data: editData: O objeto que armazena os valores dos campos de edição.
-        setData: setEditData: A função usada para atualizar cada campo do formulário de edição (por exemplo, ao mudar a opção no <select> de status).
-        patch: patchEdit: A função que envia uma requisição HTTP do tipo PATCH para o Laravel (chamando a rota de atualização de status, como projects.update-status).
-        processing: editProcessing: O booleano do Inertia que fica true enquanto a atualização está sendo enviada ao backend, permitindo desabilitar o botão "Salvar Alterações".
-    */
-   
     const { data: editData, setData: setEditData, patch: patchEdit, processing: editProcessing } = useForm({
         status: '',
         developer_name: '',
@@ -61,26 +36,19 @@ export default function Index({ auth, projects }) {
         notes: '',
     });
 
-    /*
-        escuta evento submit para salvar uma nova demanda
-    */
     const handleCreateSubmit = (e) => {
-        e.preventDefault(); // previnir comportamento padrão do formulário de atualizaar a página
+        e.preventDefault();
         postCreate(route('projects.store'), {
             onSuccess: () => {
-                resetCreate(); //Vem do Inertia.js, useForm que reseta o formulário
-                setIsCreateModalOpen(false); // seta estado da modal para false
+                resetCreate();
+                setIsCreateModalOpen(false);
             },
         });
     };
 
-
-    /*
-        abertura de modal ao selecionar o projeto
-    */
     const handleOpenManageModal = (project) => {
-        setSelectedProject(project); // seta variável do projeto
-        setEditData({    // seta os valores do formulário
+        setSelectedProject(project);
+        setEditData({
             status: project.status,
             developer_name: project.developer_name || '',
             description: project.description || '',
@@ -88,34 +56,41 @@ export default function Index({ auth, projects }) {
         });
     };
 
-     /*
-        escuta evento submit para editar a demanda
-    */
-    
     const handleUpdateSubmit = (e) => {
         e.preventDefault();
         patchEdit(route('projects.update-status', selectedProject.id), {
             onSuccess: () => {
-                setSelectedProject(null); // volta para null projeto selecionado ao edtiar
+                setSelectedProject(null);
             },
         });
     };
 
-    return (
-        <AppLayout user={auth?.user} title="Gestão de Demandas">
-            <Head title="Demandas" />
+    const totalCount = projects?.length || 0;
 
-            <div className="space-y-6 w-full">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Central de Demandas & Projetos</h2>
-                        <p className="text-xs text-slate-400">Clique em "Ver & Gerenciar" para alterar status, responsável ou ver o cronograma.</p>
+    return (
+        <AppLayout user={auth?.user}>
+            <Head title="Projetos & Demandas" />
+
+            <div className="space-y-4 w-full relative pb-10">
+                {/* Faixa superior simplificada e limpa */}
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                    <div className="flex items-center space-x-2">
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                            Demandas cadastradas:
+                        </span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400 border border-red-200 dark:border-red-900/50">
+                            {totalCount} {totalCount === 1 ? 'registro' : 'registros'}
+                        </span>
                     </div>
+
                     <button
                         onClick={() => setIsCreateModalOpen(true)}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-red-500/20 transition cursor-pointer"
+                        className="inline-flex items-center justify-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-red-500/20 hover:shadow-red-500/30 transition-all transform hover:-translate-y-0.5 cursor-pointer shrink-0"
                     >
-                        + Nova Demanda
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Nova Demanda</span>
                     </button>
                 </div>
 
@@ -175,8 +150,14 @@ export default function Index({ auth, projects }) {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan="5" className="text-center py-8 text-slate-400">
-                                            Nenhuma demanda cadastrada.
+                                        <td colSpan="5" className="text-center py-10 text-slate-400">
+                                            <p className="text-sm font-medium">Nenhuma demanda cadastrada no momento.</p>
+                                            <button 
+                                                onClick={() => setIsCreateModalOpen(true)}
+                                                className="mt-2 text-xs text-red-600 hover:underline font-semibold"
+                                            >
+                                                Cadastrar primeira demanda agora
+                                            </button>
                                         </td>
                                     </tr>
                                 )}
@@ -184,9 +165,11 @@ export default function Index({ auth, projects }) {
                         </table>
                     </div>
                 </div>
+
+                
             </div>
 
-            {/* MODAL DE GERENCIAMENTO DA DEMANDA (DETALHES + SELECT DE STATUS) */}
+            {/* MODAL DE GERENCIAMENTO DA DEMANDA */}
             {selectedProject && (
                 <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 w-full max-w-2xl shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
