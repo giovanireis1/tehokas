@@ -21,7 +21,7 @@ class AuditLogMiddleware
             $sanitizedPayload = $request->except(['password', 'password_confirmation', '_token']);
 
             AuditLog::create([
-                'tenant_id'  => $user->tenant_id ?? 1,
+                'tenant_id'  => session('active_tenant_id') ?? $user?->tenant_id ?? 1,
                 'user_id'    => $user->id ?? null,
                 'user_name'  => $user->name ?? 'Sistema/Convidado',
                 'route_name' => $request->route() ? $request->route()->getName() : null,

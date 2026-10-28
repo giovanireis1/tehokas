@@ -2,38 +2,40 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Tenant;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
-    /**
-     * The root template that is loaded on the first page visit.
-     *
-     * @var string
-     */
     protected $rootView = 'app';
 
-    /**
-     * Determine the current asset version.
-     */
     public function version(Request $request): ?string
     {
         return parent::version($request);
     }
 
-    /**
-     * Define the props that are shared by default.
-     *
-     * @return array<string, mixed>
-     */
     public function share(Request $request): array
     {
         $user = $request->user();
+        $tenantsList = [];
+        $activeTenant = null;
 
         if ($user) {
-            // Força o carregamento da relação tenant do usuário
             $user->loadMissing('tenant');
+            $isAdmin = (bool) ($user->is_admin || $user->role === 'admin');
+
+            // Se for admin, carrega a lista para o dropdown
+            if ($isAdmin) {
+                $tenantsList = Tenant::select('id', 'name', 'slug', 'plan')->orderBy('name')->get();
+                $activeTenantId = session('active_tenant_id') ?? $user->tenant_id ?? $tenantsList->first()?->id;
+
+                if ($activeTenantId) {
+                    $activeTenant = Tenant::find($activeTenantId);
+                }
+            } else {
+                $activeTenant = $user->tenant;
+            }
         }
 
         return array_merge(parent::share($request), [
@@ -43,14 +45,23 @@ class HandleInertiaRequests extends Middleware
                     'name' => $user->name,
                     'email' => $user->email,
                     'role' => $user->role,
-                    'tenant' => $user->tenant ? [
-                        'id' => $user->tenant->id,
-                        'name' => $user->tenant->name,
-                        'slug' => $user->tenant->slug,
-                        'plan' => $user->tenant->plan,
-                        'document_number' => $user->tenant->document_number,
+                    'is_admin' => (bool) ($user->is_admin || $user->role === 'admin'),
+                    'tenant' => $activeTenant ? [
+                        'id' => $activeTenant->id,
+                        'name' => $activeTenant->name,
+                        'slug' => $activeTenant->slug,
+                        'plan' => $activeTenant->plan,
+                        'document_number' => $activeTenant->document_number ?? null,
                     ] : null,
                 ] : null,
+            ],
+            'admin_data' => [
+                'tenants' => $tenantsList,
+                'active_tenant_id' => session('active_tenant_id') ?? $user?->tenant_id,
+            ],
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
             ],
         ]);
     }

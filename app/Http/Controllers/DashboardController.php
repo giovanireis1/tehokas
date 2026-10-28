@@ -17,7 +17,8 @@ class DashboardController extends Controller
 {
     public function index(Request $request): Response
     {
-        $tenantId = Auth::user()->tenant_id;
+        // Pega o ID do tenant em operação (ativo na sessão para Super Admin ou fixo para usuário)
+        $tenantId = session('active_tenant_id') ?? Auth::user()?->tenant_id;
 
         // 1. CARDS DE MÉTRICAS (Isolados pelo BelongsToTenant)
         $totalWorkflows = Workflow::count();

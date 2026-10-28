@@ -12,47 +12,44 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable, SoftDeletes;
 
-    /**
-     * Os atributos que podem ser atribuídos em massa.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'tenant_id',
         'name',
         'email',
         'password',
         'role',
+        'is_admin',
         'is_active',
     ];
 
-    /**
-     * Os atributos que devem ser ocultados na serialização.
-     *
-     * @var array<int, string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Os casts dos atributos da tabela.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'is_admin' => 'boolean',
         ];
     }
 
     /**
-     * Relacionamento com o Tenant (Empresa).
+     * Retorna o ID do Tenant em operação no momento.
+     * Se for Super Admin, respeita a sessão ativa; se for comum, usa o tenant_id fixo.
      */
+    public function getCurrentTenantId(): ?int
+    {
+        if ($this->is_admin || $this->role === 'admin') {
+            return session('active_tenant_id') ?? $this->tenant_id;
+        }
+
+        return $this->tenant_id;
+    }
+
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
