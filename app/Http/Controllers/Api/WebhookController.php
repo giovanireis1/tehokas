@@ -65,8 +65,9 @@ class WebhookController extends Controller
             'notes'        => 'nullable|string|max:500',
         ]);
 
-        // Localiza pelo código da demanda (ex: DEM-F21BB) ou pelo ID numérico
-        $project = Project::where('tenant_id', $validated['tenant_id'])
+        // Consulta usando withoutGlobalScopes para não barrar requisições externas sem sessão de auth
+        $project = Project::withoutGlobalScopes()
+            ->where('tenant_id', $validated['tenant_id'])
             ->where(function ($query) use ($validated) {
                 $query->where('code', $validated['project_code'])
                       ->orWhere('id', is_numeric($validated['project_code']) ? (int)$validated['project_code'] : 0);
@@ -92,7 +93,10 @@ class WebhookController extends Controller
             ]);
         }
 
-        // Atualiza a demanda -> O ProjectObserver é acionado automaticamente aqui!
+        // Anexa as notas no modelo para que o ProjectObserver consiga registrá-las
+        $project->notes = $validated['notes'] ?? 'Atualizado via Webhook/Swagger';
+
+        // Atualiza a demanda -> O ProjectObserver é acionado automaticamente pelo Eloquent
         $project->status = $newStatus;
         $project->save();
 

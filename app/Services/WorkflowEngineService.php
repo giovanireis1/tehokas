@@ -22,23 +22,23 @@ class WorkflowEngineService
 
         $cacheKey = "workflows_{$tenantId}_{$eventName}";
 
-        // Buscamos apenas os IDs ou convertemos para Array para evitar serialização de objetos complexos
+        // withoutGlobalScopes() garante isolamento estrito ao $tenantId informado,
+        // funcionando tanto logado quanto via Webhook/Worker externo.
         $workflowsData = Cache::remember($cacheKey, 3600, function () use ($tenantId, $eventName) {
-            return Workflow::where('tenant_id', $tenantId)
+            return Workflow::withoutGlobalScopes()
+                ->where('tenant_id', $tenantId)
                 ->where('trigger_event', $eventName)
                 ->where('is_active', true)
                 ->with(['conditions', 'actions'])
                 ->get()
-                ->toArray(); // Converte para Array nativo do PHP
+                ->toArray();
         });
 
         if (empty($workflowsData)) {
             return;
         }
 
-        // Processa os dados limpos sem dependência de desserialização de Classes
         foreach ($workflowsData as $workflowArray) {
-            // Reinstancia a model apenas para o Job se necessário, ou passa o ID/Array
             $workflow = Workflow::hydrate([$workflowArray])->first();
             ExecuteWorkflowJob::dispatch($workflow, $payload);
         }

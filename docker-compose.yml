@@ -1,0 +1,112 @@
+services:
+  # 1. Aplicação Web Laravel
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tehokas_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/var/www
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: tehokas_workflow
+      DB_USERNAME: tehokas_user
+      DB_PASSWORD: secret_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MAIL_MAILER: smtp
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      mailpit:
+        condition: service_started
+    networks:
+      - tehokas_network
+
+  # 2. Worker Assíncrono de Filas
+  queue-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tehokas_worker
+    restart: unless-stopped
+    command: php artisan queue:work redis --tries=3 --timeout=90
+    volumes:
+      - .:/var/www
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: tehokas_workflow
+      DB_USERNAME: tehokas_user
+      DB_PASSWORD: secret_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MAIL_MAILER: smtp
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+    depends_on:
+      - app
+    networks:
+      - tehokas_network
+
+  # 3. Banco de Dados PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: tehokas_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: tehokas_workflow
+      POSTGRES_USER: tehokas_user
+      POSTGRES_PASSWORD: secret_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tehokas_user -d tehokas_workflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tehokas_network
+
+  # 4. Redis para Fila e Cache
+  redis:
+    image: redis:alpine
+    container_name: tehokas_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - tehokas_network
+
+  # 5. Mailpit (SMTP e Interface Web)
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: tehokas_mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # Porta SMTP
+      - "8025:8025" # Interface Web
+    networks:
+      - tehokas_network
+
+networks:
+  tehokas_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

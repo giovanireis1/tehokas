@@ -50,20 +50,26 @@ class ProjectController extends Controller
      * Atualiza o status da demanda e dispara o ProjectObserver@updated.
      */
     public function updateStatus(Request $request, Project $project)
-    {
-        $validated = $request->validate([
-            'status'         => 'required|string',
-            'developer_name' => 'nullable|string|max:255',
-            'description'    => 'nullable|string',
-            'notes'          => 'nullable|string|max:255',
-        ]);
+        {
+            $validated = $request->validate([
+                'status'         => 'required|string',
+                'developer_name' => 'nullable|string|max:255',
+                'description'    => 'nullable|string',
+                'notes'          => 'nullable|string|max:255',
+            ]);
 
-        $project->update([
-            'status'         => $validated['status'],
-            'developer_name' => $validated['developer_name'] ?? $project->developer_name,
-            'description'    => $validated['description'] ?? $project->description,
-        ]);
+            if ($project->status === $validated['status'] 
+                && ($validated['developer_name'] ?? $project->developer_name) === $project->developer_name
+                && ($validated['description'] ?? $project->description) === $project->description) {
+                return redirect()->back();
+            }
 
-        return redirect()->back()->with('message', 'Demanda atualizada com sucesso!');
-    }
+            $project->update([
+                'status'         => $validated['status'],
+                'developer_name' => $validated['developer_name'] ?? $project->developer_name,
+                'description'    => $validated['description'] ?? $project->description,
+            ]);
+
+            return redirect()->back()->with('message', 'Demanda atualizada com sucesso!');
+        }
 }

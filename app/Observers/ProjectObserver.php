@@ -38,6 +38,11 @@ class ProjectObserver
             $oldStatus = $project->getOriginal('status');
             $newStatus = $project->status;
 
+            // Resolve a observação verificando a propriedade no modelo, no request ou recorrendo ao padrão
+            $notes = $project->notes 
+                ?? (request()->has('notes') ? request('notes') : null) 
+                ?? "Status alterado de {$oldStatus} para {$newStatus}.";
+
             // 1. Auditoria de Histórico
             ProjectStatusLog::create([
                 'tenant_id'   => $project->tenant_id,
@@ -45,7 +50,7 @@ class ProjectObserver
                 'user_id'     => Auth::id(),
                 'status_from' => $oldStatus,
                 'status_to'   => $newStatus,
-                'notes'       => request('notes') ?? "Status alterado de {$oldStatus} para {$newStatus}.",
+                'notes'       => $notes,
             ]);
 
             // 2. Disparo do Motor de Automação
